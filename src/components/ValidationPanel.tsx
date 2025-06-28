@@ -113,7 +113,10 @@ export function ValidationPanel({ dataSheets, onValidationUpdate, totalErrors, o
         toast.success('🤖 AI validation completed successfully!');
       } catch (aiError) {
         console.log('AI validation failed, using basic validation:', aiError);
-        toast.warning('AI validation unavailable, using basic validation');
+        toast('⚠️ AI validation unavailable, using basic validation', {
+          icon: '⚠️',
+          duration: 4000
+        });
       }
 
       // Process each sheet
@@ -282,7 +285,10 @@ export function ValidationPanel({ dataSheets, onValidationUpdate, totalErrors, o
       if (totalErrorsFound === 0) {
         toast.success('✅ All validation checks passed!');
       } else {
-        toast.warning(`⚠️ Found ${totalErrorsFound} validation issues`);
+        toast(`⚠️ Found ${totalErrorsFound} validation issues`, {
+          icon: '⚠️',
+          duration: 4000
+        });
       }
       
     } catch (error) {
