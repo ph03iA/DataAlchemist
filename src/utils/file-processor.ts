@@ -69,13 +69,34 @@ export class FileProcessor {
     onProgress?: (progress: FileUploadProgress) => void
   ): Promise<any[][]> {
     return new Promise((resolve, reject) => {
+      // First attempt with strict parsing
       Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
+        quotes: true,
+        quoteChar: '"',
+        escapeChar: '"',
+        delimiter: ',',
+        newline: '\n',
+        transformHeader: (header: string) => header.trim(),
+        transform: (value: string) => value.trim(),
         complete: (results) => {
-          if (results.errors.length > 0) {
-            reject(new Error(`CSV parsing error: ${results.errors[0].message}`));
+          // Check for critical errors (not warnings)
+          const criticalErrors = results.errors.filter(error => 
+            error.type === 'Delimiter' || 
+            error.type === 'FieldMismatch' ||
+            (error.type === 'Quotes' && !error.message.includes('Trailing quote'))
+          );
+          
+          if (criticalErrors.length > 0) {
+            console.log('Critical CSV errors found, trying fallback parsing:', criticalErrors);
+            this.processCSVFallback(file, onProgress).then(resolve).catch(reject);
           } else {
+            // Log non-critical errors as warnings
+            if (results.errors.length > 0) {
+              console.warn('CSV parsing warnings (non-critical):', results.errors);
+            }
+            
             onProgress?.({
               fileName: file.name,
               progress: 60,
@@ -85,7 +106,61 @@ export class FileProcessor {
           }
         },
         error: (error) => {
-          reject(new Error(`CSV parsing error: ${error.message}`));
+          console.log('CSV parsing failed, trying fallback parsing:', error.message);
+          this.processCSVFallback(file, onProgress).then(resolve).catch(reject);
+        }
+      });
+    });
+  }
+
+  private static async processCSVFallback(
+    file: File,
+    onProgress?: (progress: FileUploadProgress) => void
+  ): Promise<any[][]> {
+    return new Promise((resolve, reject) => {
+      console.log('Using fallback CSV parsing with relaxed settings...');
+      
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: 'greedy',
+        quotes: false, // Disable quote handling to avoid malformed quote errors
+        delimiter: '',  // Auto-detect delimiter
+        newline: '',    // Auto-detect line endings
+        transformHeader: (header: string) => header.trim().replace(/['"]/g, ''), // Remove quotes from headers
+        transform: (value: string) => {
+          // Clean up values - remove surrounding quotes and trim
+          return value.trim().replace(/^["']|["']$/g, '');
+        },
+        complete: (results) => {
+          console.log('Fallback CSV parsing completed');
+          
+          // Log any remaining errors as warnings only
+          if (results.errors.length > 0) {
+            console.warn('CSV fallback parsing warnings:', results.errors);
+          }
+          
+          // Filter out empty rows
+          const cleanData = (results.data as any[]).filter(row => {
+            return Object.values(row).some(value => 
+              value !== null && value !== undefined && String(value).trim() !== ''
+            );
+          });
+          
+          onProgress?.({
+            fileName: file.name,
+            progress: 60,
+            status: 'processing'
+          });
+          
+          if (cleanData.length === 0) {
+            reject(new Error('No valid data found in CSV file after cleanup'));
+          } else {
+            console.log(`Successfully parsed ${cleanData.length} rows from CSV`);
+            resolve(cleanData);
+          }
+        },
+        error: (error) => {
+          reject(new Error(`CSV parsing failed completely: ${error.message}. Please check your CSV file format.`));
         }
       });
     });

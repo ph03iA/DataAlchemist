@@ -33,6 +33,8 @@ export default function HomePage() {
     setIsProcessing(true);
     
     try {
+      const newDataSheets: DataSheet[] = [];
+      
       for (const file of files) {
         if (!FileProcessor.validateFileType(file)) {
           toast.error(`Invalid file type: ${file.name}`);
@@ -45,150 +47,479 @@ export default function HomePage() {
         }
 
         const dataSheet = await FileProcessor.processFile(file, type);
-        
-        // Run AI validation
-        try {
-          const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY;
-          console.log('API Key available:', !!apiKey);
-          
-          if (!apiKey) {
-            throw new Error('AI API key not configured. Please set NEXT_PUBLIC_AI_API_KEY environment variable.');
-          }
-          
-          const aiProviderInstance = createAIProvider(aiProvider, apiKey);
-          
-          // Get all data by type for comprehensive validation
-          const allClients = dataSheets.filter(s => s.type === 'clients').flatMap(s => s.data) as unknown as Client[];
-          const allWorkers = dataSheets.filter(s => s.type === 'workers').flatMap(s => s.data) as unknown as Worker[];
-          const allTasks = dataSheets.filter(s => s.type === 'tasks').flatMap(s => s.data) as unknown as Task[];
-          
-          // Add current sheet data if it's not already included
-          let currentData: any[] = [];
-          if (dataSheet.type === 'clients') {
-            currentData = [...allClients, ...dataSheet.data];
-          } else if (dataSheet.type === 'workers') {
-            currentData = [...allWorkers, ...dataSheet.data];
-          } else if (dataSheet.type === 'tasks') {
-            currentData = [...allTasks, ...dataSheet.data];
-          }
-          
-          // Core validation first
-          const validationSummary = await aiProviderInstance.validateData(
-            dataSheet.type === 'clients' ? dataSheet.data as unknown as Client[] : allClients,
-            dataSheet.type === 'workers' ? dataSheet.data as unknown as Worker[] : allWorkers,
-            dataSheet.type === 'tasks' ? dataSheet.data as unknown as Task[] : allTasks
-          );
-          
-          // Enhanced AI validation
-          try {
-            const aiValidationErrors = await aiProviderInstance.enhancedValidation(dataSheet.data, dataSheet.type);
-            validationSummary.errors = [...validationSummary.errors, ...aiValidationErrors];
-            validationSummary.totalErrors += aiValidationErrors.filter(e => e.severity === 'error').length;
-            validationSummary.totalWarnings += aiValidationErrors.filter(e => e.severity === 'warning').length;
-            validationSummary.totalInfo += aiValidationErrors.filter(e => e.severity === 'info').length;
-            console.log('Enhanced AI validation added', aiValidationErrors.length, 'additional errors');
-          } catch (aiValidationError) {
-            console.log('AI enhanced validation failed, using core validation only:', aiValidationError);
-          }
-          
-          dataSheet.validationSummary = validationSummary;
-          dataSheet.validationErrors = validationSummary.errors;
-        } catch (error) {
-          console.warn('AI validation failed, using basic validation:', error);
-          // Add basic validation as fallback
-          const basicErrors: ValidationError[] = [];
-          
-          // Check for empty data
-          if (dataSheet.data.length === 0) {
-            basicErrors.push({
-              id: 'empty-data',
-              row: -1,
-              column: 'general',
-              message: 'No data found in the file',
-              severity: 'error',
-              suggestion: 'Please ensure the file contains data rows'
-            });
-          }
-          
-          // Check for missing required columns
-          if (dataSheet.data.length > 0) {
-            const firstRow = dataSheet.data[0];
-            const requiredColumns = {
-              clients: ['ClientID', 'ClientName', 'PriorityLevel', 'RequestedTaskIDs', 'GroupTag', 'AttributesJSON'],
-              workers: ['WorkerID', 'WorkerName', 'Skills', 'AvailableSlots', 'MaxLoadPerPhase', 'WorkerGroup', 'QualificationLevel'],
-              tasks: ['TaskID', 'TaskName', 'Category', 'Duration', 'RequiredSkills', 'PreferredPhases', 'MaxConcurrent']
-            };
-            
-            const required = requiredColumns[dataSheet.type] || [];
-            required.forEach(column => {
-              if (!(column in firstRow)) {
-                basicErrors.push({
-                  id: `missing-${column}`,
-                  row: -1,
-                  column,
-                  message: `Missing required column: ${column}`,
-                  severity: 'error',
-                  suggestion: `Add the ${column} column to your data`
-                });
-              }
-            });
-            
-            // Check for duplicate IDs
-            const idColumn = dataSheet.type === 'clients' ? 'ClientID' : 
-                            dataSheet.type === 'workers' ? 'WorkerID' : 'TaskID';
-            
-            if (idColumn in firstRow) {
-              const ids = new Set();
-              dataSheet.data.forEach((row, index) => {
-                const id = row[idColumn];
-                if (ids.has(id)) {
-                  basicErrors.push({
-                    id: `duplicate-${idColumn}-${id}`,
-                    row: index,
-                    column: idColumn,
-                    message: `Duplicate ${idColumn}: ${id}`,
-                    severity: 'error',
-                    suggestion: `Use a unique ${idColumn}`
-                  });
-                }
-                ids.add(id);
-              });
-            }
-            
-            // Type-specific validations
-            if (dataSheet.type === 'clients') {
-              dataSheet.data.forEach((row, index) => {
-                if (row.PriorityLevel && (row.PriorityLevel < 1 || row.PriorityLevel > 5)) {
-                  basicErrors.push({
-                    id: `invalid-priority-${row.ClientID || index}`,
-                    row: index,
-                    column: 'PriorityLevel',
-                    message: `PriorityLevel must be 1-5, got: ${row.PriorityLevel}`,
-                    severity: 'error',
-                    suggestion: 'Set PriorityLevel to a value between 1 and 5'
-                  });
-                }
-              });
-            }
-          }
-          
-          dataSheet.validationErrors = basicErrors;
-          console.log('Basic validation found', basicErrors.length, 'errors for', dataSheet.name);
-        }
-
-        setDataSheets(prev => [...prev, dataSheet]);
-        if (!activeSheet) {
-          setActiveSheet(dataSheet.id);
-        }
+        newDataSheets.push(dataSheet);
         
         toast.success(`Successfully processed ${file.name}`);
       }
+
+      // Add new sheets to state first
+      const updatedDataSheets = [...dataSheets, ...newDataSheets];
+      setDataSheets(updatedDataSheets);
+      
+      // Set active sheet if none is selected
+      if (!activeSheet && newDataSheets.length > 0) {
+        setActiveSheet(newDataSheets[0].id);
+      }
+
+      // Now run comprehensive validation on all data including newly uploaded
+      await runComprehensiveValidation(updatedDataSheets);
+      
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to process file');
     } finally {
       setIsProcessing(false);
     }
   }, [activeSheet, aiProvider, dataSheets]);
+
+  // New comprehensive validation function
+  const runComprehensiveValidation = async (sheets: DataSheet[]) => {
+    try {
+      const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY;
+      console.log('Running comprehensive validation on all datasets...');
+      
+      // Get all data by type
+      const allClients = sheets.filter(s => s.type === 'clients').flatMap(s => s.data) as unknown as Client[];
+      const allWorkers = sheets.filter(s => s.type === 'workers').flatMap(s => s.data) as unknown as Worker[];
+      const allTasks = sheets.filter(s => s.type === 'tasks').flatMap(s => s.data) as unknown as Task[];
+      
+      console.log('Dataset sizes:', { 
+        clients: allClients.length, 
+        workers: allWorkers.length, 
+        tasks: allTasks.length 
+      });
+
+      // Check if we have all three dataset types for comprehensive validation
+      const hasAllDataTypes = allClients.length > 0 && allWorkers.length > 0 && allTasks.length > 0;
+      
+      if (hasAllDataTypes) {
+        console.log('🎯 All three datasets present - running comprehensive cross-referential validation');
+        toast.success('🎯 All datasets loaded! Running comprehensive validation...', { duration: 3000 });
+      }
+
+      // Update each sheet with comprehensive validation results
+      const updatedSheets = await Promise.all(sheets.map(async (sheet) => {
+        try {
+          let validationErrors: ValidationError[] = [];
+          
+          // Run AI validation if API key is available
+          if (apiKey) {
+            const aiProviderInstance = createAIProvider(aiProvider, apiKey);
+            
+            // Comprehensive AI validation with all data
+            console.log(`Running AI validation for ${sheet.name} (${sheet.type})`);
+            
+            const validationSummary = await aiProviderInstance.validateData(allClients, allWorkers, allTasks);
+            
+            // Enhanced AI validation for this specific sheet
+            const enhancedErrors = await aiProviderInstance.enhancedValidation(sheet.data, sheet.type);
+            
+            // AI-powered data corrections suggestions
+            const corrections = await aiProviderInstance.suggestDataCorrections(sheet.data, sheet.type);
+            const correctionErrors = corrections.map(correction => ({
+              id: correction.id,
+              row: correction.row,
+              column: correction.column,
+              message: `Suggestion: ${correction.reason}`,
+              severity: 'info' as const,
+              suggestion: `Change "${correction.currentValue}" to "${correction.suggestedValue}"`
+            }));
+            
+            // Combine all AI validation results
+            const allAIErrors = [
+              ...validationSummary.errors.filter(e => e.validationType && e.validationType.includes(sheet.type)),
+              ...enhancedErrors,
+              ...correctionErrors
+            ];
+            
+            validationErrors = allAIErrors;
+          } else {
+            console.warn('No AI API key, using comprehensive basic validation');
+          }
+          
+          // Always run comprehensive basic validation as fallback/supplement
+          const basicErrors = await runComprehensiveBasicValidation(sheet, allClients, allWorkers, allTasks, hasAllDataTypes);
+          
+          // Combine and deduplicate errors
+          const combinedErrors = [...validationErrors, ...basicErrors];
+          const uniqueErrors = combinedErrors.filter((error, index, self) => 
+            index === self.findIndex(e => e.id === error.id || 
+              (e.row === error.row && e.column === error.column && e.message === error.message)
+            )
+          );
+          
+          console.log(`Validation complete for ${sheet.name}:`, {
+            total: uniqueErrors.length,
+            errors: uniqueErrors.filter(e => e.severity === 'error').length,
+            warnings: uniqueErrors.filter(e => e.severity === 'warning').length,
+            info: uniqueErrors.filter(e => e.severity === 'info').length
+          });
+          
+          return {
+            ...sheet,
+            validationErrors: uniqueErrors,
+            validationSummary: {
+              totalErrors: uniqueErrors.filter(e => e.severity === 'error').length,
+              totalWarnings: uniqueErrors.filter(e => e.severity === 'warning').length,
+              totalInfo: uniqueErrors.filter(e => e.severity === 'info').length,
+              passedValidations: uniqueErrors.filter(e => e.severity === 'error').length === 0 ? 
+                ['basic_structure', 'data_format', 'required_fields'] : [],
+              failedValidations: uniqueErrors.filter(e => e.severity === 'error').length > 0 ? 
+                ['cross_referential_validation'] : [],
+              validationsPassed: uniqueErrors.filter(e => e.severity === 'error').length === 0,
+              lastRun: new Date(),
+              errors: uniqueErrors
+            }
+          };
+        } catch (error) {
+          console.error(`Validation failed for ${sheet.name}:`, error);
+          return sheet; // Return original sheet if validation fails
+        }
+      }));
+      
+      // Update state with validated sheets
+      setDataSheets(updatedSheets);
+      
+      // Show validation summary
+      const totalErrors = updatedSheets.reduce((sum, sheet) => 
+        sum + sheet.validationErrors.filter(e => e.severity === 'error').length, 0
+      );
+      const totalWarnings = updatedSheets.reduce((sum, sheet) => 
+        sum + sheet.validationErrors.filter(e => e.severity === 'warning').length, 0
+      );
+      const totalInfo = updatedSheets.reduce((sum, sheet) => 
+        sum + sheet.validationErrors.filter(e => e.severity === 'info').length, 0
+      );
+      
+      if (hasAllDataTypes) {
+        if (totalErrors === 0) {
+          toast.success(`✅ Comprehensive validation passed! ${totalWarnings} warnings, ${totalInfo} suggestions`, {
+            duration: 4000
+          });
+        } else {
+          toast.error(`❌ Found ${totalErrors} critical errors, ${totalWarnings} warnings across all datasets`, {
+            duration: 5000
+          });
+        }
+      } else {
+        const missingTypes = [];
+        if (allClients.length === 0) missingTypes.push('clients');
+        if (allWorkers.length === 0) missingTypes.push('workers');
+        if (allTasks.length === 0) missingTypes.push('tasks');
+        
+        toast(`📝 Upload ${missingTypes.join(', ')} data for comprehensive cross-referential validation`, {
+          icon: '📝',
+          duration: 4000
+        });
+      }
+      
+    } catch (error) {
+      console.error('Comprehensive validation failed:', error);
+      toast.error('Validation failed. Check console for details.');
+    }
+  };
+
+  // Enhanced basic validation with cross-referential checks
+  const runComprehensiveBasicValidation = async (
+    sheet: DataSheet, 
+    allClients: Client[], 
+    allWorkers: Worker[], 
+    allTasks: Task[],
+    hasAllDataTypes: boolean
+  ): Promise<ValidationError[]> => {
+    const errors: ValidationError[] = [];
+    
+    // Check for empty data
+    if (sheet.data.length === 0) {
+      errors.push({
+        id: 'empty-data',
+        row: -1,
+        column: 'general',
+        message: 'No data found in the file',
+        severity: 'error',
+        suggestion: 'Please ensure the file contains data rows'
+      });
+      return errors;
+    }
+
+    // Basic structure validation (same as before)
+    const firstRow = sheet.data[0];
+    const requiredColumns = {
+      clients: ['ClientID', 'ClientName', 'PriorityLevel', 'RequestedTaskIDs', 'GroupTag', 'AttributesJSON'],
+      workers: ['WorkerID', 'WorkerName', 'Skills', 'AvailableSlots', 'MaxLoadPerPhase', 'WorkerGroup', 'QualificationLevel'],
+      tasks: ['TaskID', 'TaskName', 'Category', 'Duration', 'RequiredSkills', 'PreferredPhases', 'MaxConcurrent']
+    };
+    
+    const required = requiredColumns[sheet.type] || [];
+    required.forEach(column => {
+      if (!(column in firstRow)) {
+        errors.push({
+          id: `missing-${column}`,
+          row: -1,
+          column,
+          message: `Missing required column: ${column}`,
+          severity: 'error',
+          suggestion: `Add the ${column} column to your data`
+        });
+      }
+    });
+
+    // Cross-referential validation (only if we have all datasets)
+    if (hasAllDataTypes) {
+      if (sheet.type === 'clients') {
+        // Validate RequestedTaskIDs references
+        const taskIds = new Set(allTasks.map(t => t.TaskID));
+        sheet.data.forEach((client, index) => {
+          if (client.RequestedTaskIDs) {
+            const requestedIds = client.RequestedTaskIDs.split(',').map((id: string) => id.trim());
+            requestedIds.forEach((taskId: string) => {
+              if (taskId && !taskIds.has(taskId)) {
+                errors.push({
+                  id: `unknown-task-ref-${client.ClientID}-${taskId}`,
+                  row: index,
+                  column: 'RequestedTaskIDs',
+                  message: `❌ Unknown TaskID reference: ${taskId}`,
+                  severity: 'error',
+                  suggestion: 'Ensure all referenced TaskIDs exist in tasks data'
+                });
+              }
+            });
+          }
+        });
+      }
+
+      if (sheet.type === 'tasks') {
+        // Validate RequiredSkills coverage
+        const availableSkills = new Set(allWorkers.flatMap(w => 
+          w.Skills.split(',').map((s: string) => s.trim().toLowerCase())
+        ));
+        
+        sheet.data.forEach((task, index) => {
+          if (task.RequiredSkills) {
+            const requiredSkills = task.RequiredSkills.split(',').map((s: string) => s.trim());
+            const uncoveredSkills = requiredSkills.filter((skill: string) => 
+              skill && !availableSkills.has(skill.toLowerCase())
+            );
+            
+            if (uncoveredSkills.length > 0) {
+              errors.push({
+                id: `uncovered-skills-${task.TaskID}`,
+                row: index,
+                column: 'RequiredSkills',
+                message: `❌ No workers have required skills: ${uncoveredSkills.join(', ')}`,
+                severity: 'error',
+                suggestion: 'Add workers with these skills or modify task requirements'
+              });
+            }
+          }
+        });
+      }
+
+      if (sheet.type === 'workers') {
+        // Validate phase availability vs task preferences
+        const taskPhases = new Set(allTasks.flatMap(task => {
+          if (task.PreferredPhases) {
+            try {
+              if (task.PreferredPhases.includes('-')) {
+                const [start, end] = task.PreferredPhases.split('-').map(n => parseInt(n.trim()));
+                return Array.from({length: end - start + 1}, (_, i) => start + i);
+              }
+              return JSON.parse(task.PreferredPhases);
+            } catch {
+              return [];
+            }
+          }
+          return [];
+        }));
+
+        sheet.data.forEach((worker, index) => {
+          if (worker.AvailableSlots) {
+            try {
+              const availableSlots = JSON.parse(worker.AvailableSlots);
+              const hasTaskPhaseOverlap = availableSlots.some((slot: number) => taskPhases.has(slot));
+              
+              if (!hasTaskPhaseOverlap && taskPhases.size > 0) {
+                errors.push({
+                  id: `no-phase-overlap-${worker.WorkerID}`,
+                  row: index,
+                  column: 'AvailableSlots',
+                  message: `⚠️ Worker slots ${JSON.stringify(availableSlots)} don't overlap with any task preferred phases`,
+                  severity: 'warning',
+                  suggestion: 'Ensure worker availability aligns with task scheduling needs'
+                });
+              }
+            } catch {
+              // Already handled by basic validation
+            }
+          }
+        });
+      }
+    }
+
+    // Continue with comprehensive type-specific validations
+    if (sheet.type === 'clients') {
+      sheet.data.forEach((row, index) => {
+        // Priority level validation
+        if (row.PriorityLevel && (row.PriorityLevel < 1 || row.PriorityLevel > 5)) {
+          errors.push({
+            id: `invalid-priority-${row.ClientID || index}`,
+            row: index,
+            column: 'PriorityLevel',
+            message: `PriorityLevel must be 1-5, got: ${row.PriorityLevel}`,
+            severity: 'error',
+            suggestion: 'Set PriorityLevel to a value between 1 and 5'
+          });
+        }
+        
+        // Check AttributesJSON
+        if (row.AttributesJSON) {
+          try {
+            JSON.parse(row.AttributesJSON);
+          } catch {
+            errors.push({
+              id: `invalid-json-${row.ClientID || index}`,
+              row: index,
+              column: 'AttributesJSON',
+              message: 'Invalid JSON format in AttributesJSON',
+              severity: 'error',
+              suggestion: 'Fix the JSON syntax'
+            });
+          }
+        }
+        
+        // Check required fields
+        if (!row.ClientName || row.ClientName.trim() === '') {
+          errors.push({
+            id: `empty-name-${row.ClientID || index}`,
+            row: index,
+            column: 'ClientName',
+            message: 'ClientName cannot be empty',
+            severity: 'error',
+            suggestion: 'Provide a valid client name'
+          });
+        }
+      });
+    }
+    
+    if (sheet.type === 'workers') {
+      sheet.data.forEach((row, index) => {
+        // Check QualificationLevel - handle both numeric (1-10) and text values
+        if (row.QualificationLevel) {
+          const qualLevel = String(row.QualificationLevel).toLowerCase();
+          const numericLevel = Number(row.QualificationLevel);
+          
+          // Check if it's numeric and in range
+          if (!isNaN(numericLevel) && (numericLevel < 1 || numericLevel > 10)) {
+            errors.push({
+              id: `invalid-qualification-numeric-${row.WorkerID || index}`,
+              row: index,
+              column: 'QualificationLevel',
+              message: `QualificationLevel should be 1-10, got: ${row.QualificationLevel}`,
+              severity: 'warning',
+              suggestion: 'Set QualificationLevel between 1 and 10'
+            });
+          }
+          // Check if it's text and validate standard levels
+          else if (isNaN(numericLevel)) {
+            const validTextLevels = ['junior', 'mid-level', 'senior', 'lead', 'principal', 'architect'];
+            if (!validTextLevels.includes(qualLevel)) {
+              errors.push({
+                id: `invalid-qualification-text-${row.WorkerID || index}`,
+                row: index,
+                column: 'QualificationLevel',
+                message: `Invalid QualificationLevel: ${row.QualificationLevel}`,
+                severity: 'info',
+                suggestion: 'Use: Junior, Mid-level, Senior, Lead, Principal, or Architect'
+              });
+            }
+          }
+        }
+        
+        // Check Skills format
+        if (row.Skills) {
+          const skills = row.Skills.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0);
+          if (skills.length === 0) {
+            errors.push({
+              id: `empty-skills-${row.WorkerID || index}`,
+              row: index,
+              column: 'Skills',
+              message: 'Skills cannot be empty',
+              severity: 'error',
+              suggestion: 'Add at least one skill'
+            });
+          }
+        }
+        
+        // Check MaxLoadPerPhase
+        if (row.MaxLoadPerPhase !== undefined && row.MaxLoadPerPhase !== null && row.MaxLoadPerPhase !== '') {
+          const maxLoad = Number(row.MaxLoadPerPhase);
+          if (isNaN(maxLoad) || maxLoad < 1) {
+            errors.push({
+              id: `invalid-load-${row.WorkerID || index}`,
+              row: index,
+              column: 'MaxLoadPerPhase',
+              message: `MaxLoadPerPhase must be ≥ 1, got: ${row.MaxLoadPerPhase}`,
+              severity: 'error',
+              suggestion: 'Set MaxLoadPerPhase to 1 or higher'
+            });
+          }
+        }
+        
+        // Check required fields
+        if (!row.WorkerName || row.WorkerName.trim() === '') {
+          errors.push({
+            id: `empty-worker-name-${row.WorkerID || index}`,
+            row: index,
+            column: 'WorkerName',
+            message: 'WorkerName cannot be empty',
+            severity: 'error',
+            suggestion: 'Provide a valid worker name'
+          });
+        }
+      });
+    }
+    
+    if (sheet.type === 'tasks') {
+      sheet.data.forEach((row, index) => {
+        // Check Duration
+        if (row.Duration && row.Duration < 1) {
+          errors.push({
+            id: `invalid-duration-${row.TaskID || index}`,
+            row: index,
+            column: 'Duration',
+            message: `Duration must be ≥ 1, got: ${row.Duration}`,
+            severity: 'error',
+            suggestion: 'Set Duration to 1 or higher'
+          });
+        }
+        
+        // Check MaxConcurrent
+        if (row.MaxConcurrent && row.MaxConcurrent < 1) {
+          errors.push({
+            id: `invalid-concurrent-${row.TaskID || index}`,
+            row: index,
+            column: 'MaxConcurrent',
+            message: `MaxConcurrent must be ≥ 1, got: ${row.MaxConcurrent}`,
+            severity: 'warning',
+            suggestion: 'Set MaxConcurrent to 1 or higher'
+          });
+        }
+        
+        // Check required fields
+        if (!row.TaskName || row.TaskName.trim() === '') {
+          errors.push({
+            id: `empty-task-name-${row.TaskID || index}`,
+            row: index,
+            column: 'TaskName',
+            message: 'TaskName cannot be empty',
+            severity: 'error',
+            suggestion: 'Provide a valid task name'
+          });
+        }
+      });
+    }
+
+    return errors;
+  };
 
   const handleDataUpdate = useCallback((sheetId: string, updatedData: any[]) => {
     setDataSheets(prev => prev.map(sheet => 
@@ -452,6 +783,7 @@ export default function HomePage() {
                 dataSheets={dataSheets}
                 onValidationUpdate={handleValidationUpdate}
                 totalErrors={totalErrors}
+                onRunComprehensiveValidation={() => runComprehensiveValidation(dataSheets)}
               />
             </motion.div>
 

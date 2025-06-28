@@ -12,15 +12,19 @@ import {
   ChartBarIcon,
   EyeIcon,
   ChevronDownIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  PlayIcon
 } from '@heroicons/react/24/outline';
-import { DataSheet, ValidationError } from '@/types';
+import { DataSheet, ValidationError, Client, Worker, Task } from '@/types';
 import { cn } from '@/utils/cn';
+import { createAIProvider } from '@/lib/ai-provider';
+import toast from 'react-hot-toast';
 
 interface ValidationPanelProps {
   dataSheets: DataSheet[];
   onValidationUpdate: (sheetId: string, errors: ValidationError[]) => void;
   totalErrors: number;
+  onRunComprehensiveValidation?: () => Promise<void>;
 }
 
 const severityConfig = {
@@ -47,9 +51,10 @@ const severityConfig = {
   }
 };
 
-export function ValidationPanel({ dataSheets, onValidationUpdate, totalErrors }: ValidationPanelProps) {
+export function ValidationPanel({ dataSheets, onValidationUpdate, totalErrors, onRunComprehensiveValidation }: ValidationPanelProps) {
   const [expandedSheets, setExpandedSheets] = useState<Set<string>>(new Set());
   const [selectedSeverity, setSelectedSeverity] = useState<string | null>(null);
+  const [isRunningValidation, setIsRunningValidation] = useState(false);
 
   const toggleSheet = (sheetId: string) => {
     const newExpanded = new Set(expandedSheets);
@@ -59,6 +64,234 @@ export function ValidationPanel({ dataSheets, onValidationUpdate, totalErrors }:
       newExpanded.add(sheetId);
     }
     setExpandedSheets(newExpanded);
+  };
+
+  const runManualValidation = async () => {
+    if (dataSheets.length === 0) {
+      toast.error('No data to validate. Please upload some files first.');
+      return;
+    }
+
+    setIsRunningValidation(true);
+    
+    try {
+      // Use the comprehensive validation function from parent if available
+      if (onRunComprehensiveValidation) {
+        console.log('Using comprehensive validation from parent...');
+        await onRunComprehensiveValidation();
+        toast.success('🎯 Comprehensive validation completed!');
+        return;
+      }
+      
+      // Fallback to local validation logic
+      console.log('Running local validation...');
+      let aiValidationUsed = false;
+    
+    try {
+      // Get all data by type for comprehensive AI validation
+      const allClients = dataSheets.filter(s => s.type === 'clients').flatMap(s => s.data) as unknown as Client[];
+      const allWorkers = dataSheets.filter(s => s.type === 'workers').flatMap(s => s.data) as unknown as Worker[];
+      const allTasks = dataSheets.filter(s => s.type === 'tasks').flatMap(s => s.data) as unknown as Task[];
+
+      // Try AI validation first
+      let aiValidationSummary = null;
+      try {
+        const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY;
+        console.log('API Key available for validation:', !!apiKey);
+        
+        if (!apiKey) {
+          throw new Error('AI API key not configured');
+        }
+        
+        const aiProviderInstance = createAIProvider('gemini', apiKey);
+        
+        // Run comprehensive AI validation (12+ validation types)
+        aiValidationSummary = await aiProviderInstance.validateData(allClients, allWorkers, allTasks);
+        aiValidationUsed = true;
+        
+        console.log('AI validation summary:', aiValidationSummary);
+        toast.success('🤖 AI validation completed successfully!');
+      } catch (aiError) {
+        console.log('AI validation failed, using basic validation:', aiError);
+        toast.warning('AI validation unavailable, using basic validation');
+      }
+
+      // Process each sheet
+      for (const sheet of dataSheets) {
+        let allErrors: ValidationError[] = [];
+        
+        // If AI validation succeeded, use those results
+        if (aiValidationSummary && aiValidationSummary.errors) {
+          // Filter AI errors for this specific sheet
+          const sheetErrors = aiValidationSummary.errors.filter(error => {
+            // AI errors don't have sheet context, so we'll apply them to all sheets for now
+            // In a more sophisticated system, we'd need better error attribution
+            return true;
+          });
+          allErrors = [...sheetErrors];
+        }
+        
+        // Always run basic validation as additional safety net
+        const basicErrors: ValidationError[] = [];
+        
+        // Check for empty data
+        if (sheet.data.length === 0) {
+          basicErrors.push({
+            id: 'empty-data',
+            row: -1,
+            column: 'general',
+            message: 'No data found in the file',
+            severity: 'error',
+            suggestion: 'Please ensure the file contains data rows'
+          });
+        }
+        
+        // Check for missing required columns
+        if (sheet.data.length > 0) {
+          const firstRow = sheet.data[0];
+          const requiredColumns = {
+            clients: ['ClientID', 'ClientName', 'PriorityLevel', 'RequestedTaskIDs', 'GroupTag', 'AttributesJSON'],
+            workers: ['WorkerID', 'WorkerName', 'Skills', 'AvailableSlots', 'MaxLoadPerPhase', 'WorkerGroup', 'QualificationLevel'],
+            tasks: ['TaskID', 'TaskName', 'Category', 'Duration', 'RequiredSkills', 'PreferredPhases', 'MaxConcurrent']
+          };
+          
+          const required = requiredColumns[sheet.type] || [];
+          required.forEach(column => {
+            if (!(column in firstRow)) {
+              basicErrors.push({
+                id: `missing-${column}`,
+                row: -1,
+                column,
+                message: `Missing required column: ${column}`,
+                severity: 'error',
+                suggestion: `Add the ${column} column to your data`
+              });
+            }
+          });
+          
+          // Check for duplicate IDs
+          const idColumn = sheet.type === 'clients' ? 'ClientID' : 
+                          sheet.type === 'workers' ? 'WorkerID' : 'TaskID';
+          
+          if (idColumn in firstRow) {
+            const ids = new Set();
+            sheet.data.forEach((row, index) => {
+              const id = row[idColumn];
+              if (ids.has(id)) {
+                basicErrors.push({
+                  id: `duplicate-${idColumn}-${id}`,
+                  row: index,
+                  column: idColumn,
+                  message: `Duplicate ${idColumn}: ${id}`,
+                  severity: 'error',
+                  suggestion: `Use a unique ${idColumn}`
+                });
+              }
+              ids.add(id);
+            });
+          }
+          
+          // Type-specific validations
+          if (sheet.type === 'clients') {
+            sheet.data.forEach((row, index) => {
+              if (row.PriorityLevel && (row.PriorityLevel < 1 || row.PriorityLevel > 5)) {
+                basicErrors.push({
+                  id: `invalid-priority-${row.ClientID || index}`,
+                  row: index,
+                  column: 'PriorityLevel',
+                  message: `PriorityLevel must be 1-5, got: ${row.PriorityLevel}`,
+                  severity: 'error',
+                  suggestion: 'Set PriorityLevel to a value between 1 and 5'
+                });
+              }
+            });
+          }
+          
+          if (sheet.type === 'workers') {
+            sheet.data.forEach((row, index) => {
+              // Check QualificationLevel range
+              if (row.QualificationLevel && (row.QualificationLevel < 1 || row.QualificationLevel > 10)) {
+                basicErrors.push({
+                  id: `invalid-qualification-${row.WorkerID || index}`,
+                  row: index,
+                  column: 'QualificationLevel',
+                  message: `QualificationLevel should be 1-10, got: ${row.QualificationLevel}`,
+                  severity: 'warning',
+                  suggestion: 'Set QualificationLevel between 1 and 10'
+                });
+              }
+              
+              // Check Skills format
+              if (row.Skills && !row.Skills.includes(',') && row.Skills.length > 50) {
+                basicErrors.push({
+                  id: `skills-format-${row.WorkerID || index}`,
+                  row: index,
+                  column: 'Skills',
+                  message: 'Skills should be comma-separated',
+                  severity: 'info',
+                  suggestion: 'Separate multiple skills with commas'
+                });
+              }
+            });
+          }
+          
+          if (sheet.type === 'tasks') {
+            sheet.data.forEach((row, index) => {
+              // Check Duration
+              if (row.Duration && row.Duration < 1) {
+                basicErrors.push({
+                  id: `invalid-duration-${row.TaskID || index}`,
+                  row: index,
+                  column: 'Duration',
+                  message: `Duration must be ≥ 1, got: ${row.Duration}`,
+                  severity: 'error',
+                  suggestion: 'Set Duration to 1 or higher'
+                });
+              }
+              
+              // Check MaxConcurrent
+              if (row.MaxConcurrent && row.MaxConcurrent < 1) {
+                basicErrors.push({
+                  id: `invalid-concurrent-${row.TaskID || index}`,
+                  row: index,
+                  column: 'MaxConcurrent',
+                  message: `MaxConcurrent must be ≥ 1, got: ${row.MaxConcurrent}`,
+                  severity: 'warning',
+                  suggestion: 'Set MaxConcurrent to 1 or higher'
+                });
+              }
+            });
+          }
+        }
+        
+        // Combine AI and basic validation results (remove duplicates)
+        const combinedErrors = [...allErrors, ...basicErrors];
+        const uniqueErrors = combinedErrors.filter((error, index, self) => 
+          index === self.findIndex(e => e.id === error.id)
+        );
+        
+        // Update the sheet's validation errors
+        onValidationUpdate(sheet.id, uniqueErrors);
+      }
+
+      // Show validation summary
+      const totalErrorsFound = dataSheets.reduce((sum, sheet) => 
+        sum + sheet.validationErrors.length, 0
+      );
+      
+      if (totalErrorsFound === 0) {
+        toast.success('✅ All validation checks passed!');
+      } else {
+        toast.warning(`⚠️ Found ${totalErrorsFound} validation issues`);
+      }
+      
+    } catch (error) {
+      console.error('Validation failed:', error);
+      toast.error('Validation failed. Please try again.');
+    }
+    } finally {
+      setIsRunningValidation(false);
+    }
   };
 
   const criticalErrors = dataSheets.reduce((sum, sheet) => 
@@ -140,6 +373,34 @@ export function ValidationPanel({ dataSheets, onValidationUpdate, totalErrors }:
             </div>
           </div>
         </div>
+
+        {/* Manual Validation Button */}
+        <div className="mt-4">
+          <button
+            onClick={runManualValidation}
+            disabled={isRunningValidation}
+            className={cn(
+              'flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all duration-200',
+              isRunningValidation
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl'
+            )}
+          >
+            {isRunningValidation ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500"></div>
+            ) : (
+              <PlayIcon className="h-4 w-4" />
+            )}
+            <span>
+              {isRunningValidation ? 'Running Validation...' : (() => {
+                const hasAllTypes = dataSheets.some(s => s.type === 'clients') && 
+                                   dataSheets.some(s => s.type === 'workers') && 
+                                   dataSheets.some(s => s.type === 'tasks');
+                return hasAllTypes ? 'Run Comprehensive Validation' : 'Run Validation Checks';
+              })()}
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -219,7 +480,7 @@ export function ValidationPanel({ dataSheets, onValidationUpdate, totalErrors }:
         </button>
         {['error', 'warning', 'info'].map((severity) => {
           const count = severity === 'error' ? criticalErrors : severity === 'warning' ? warnings : infos;
-          const config = severityConfig[severity as keyof typeof severityConfig];
+          const config = severityConfig[severity as keyof typeof severityConfig] || severityConfig.info;
           
           return (
             <button
@@ -315,7 +576,7 @@ export function ValidationPanel({ dataSheets, onValidationUpdate, totalErrors }:
                         </div>
                       ) : (
                         sheet.validationErrors.map((error, index) => {
-                          const config = severityConfig[error.severity as keyof typeof severityConfig];
+                          const config = severityConfig[error.severity as keyof typeof severityConfig] || severityConfig.info;
                           
                           return (
                             <motion.div

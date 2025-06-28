@@ -203,12 +203,12 @@ export class AllocationEngine {
     
     // Rule: Prioritize senior/experienced workers
     if (ruleText.includes('senior') || ruleText.includes('experienced') || ruleText.includes('expert')) {
-      return workers.sort((a, b) => b.QualificationLevel - a.QualificationLevel);
+      return workers.sort((a, b) => Number(b.QualificationLevel) - Number(a.QualificationLevel));
     }
     
     // Rule: Assign based on qualification level
     if (ruleText.includes('qualification') || ruleText.includes('level')) {
-      return workers.sort((a, b) => b.QualificationLevel - a.QualificationLevel);
+      return workers.sort((a, b) => Number(b.QualificationLevel) - Number(a.QualificationLevel));
     }
     
     // Rule: Balance workload
@@ -223,14 +223,14 @@ export class AllocationEngine {
     // Rule: Minimize cost
     if (ruleText.includes('cost') || ruleText.includes('budget') || ruleText.includes('cheap')) {
       // Prefer workers with lower qualification levels (assuming they cost less)
-      return workers.sort((a, b) => a.QualificationLevel - b.QualificationLevel);
+      return workers.sort((a, b) => Number(a.QualificationLevel) - Number(b.QualificationLevel));
     }
     
     // Rule: Prioritize high-priority clients
     if (ruleText.includes('high priority') || ruleText.includes('urgent')) {
       if (client.PriorityLevel >= 4) {
         // For high priority clients, prefer senior workers
-        return workers.sort((a, b) => b.QualificationLevel - a.QualificationLevel);
+        return workers.sort((a, b) => Number(b.QualificationLevel) - Number(a.QualificationLevel));
       }
     }
     
@@ -290,7 +290,7 @@ export class AllocationEngine {
       reasons.push(`Team allocation for better collaboration`);
     }
     
-    const avgQualification = workers.reduce((sum, w) => sum + w.QualificationLevel, 0) / workers.length;
+    const avgQualification = workers.reduce((sum, w) => sum + Number(w.QualificationLevel), 0) / workers.length;
     if (avgQualification >= 8) {
       reasons.push(`Senior workers selected for complex task`);
     } else if (avgQualification <= 5) {
@@ -341,8 +341,7 @@ export class AllocationEngine {
   }
 
   private getCurrentUtilization(workerId: string): number {
-    // This would track current workload in a real implementation
-    // For now, return 0 as baseline
+
     return 0;
   }
 
