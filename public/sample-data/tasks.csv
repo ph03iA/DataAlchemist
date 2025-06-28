@@ -1,0 +1,13 @@
+TaskID,TaskName,Category,Duration,RequiredSkills,PreferredPhases,MaxConcurrent
+T001,Website Redesign,Frontend,2,"React,UI/UX,JavaScript","[1,2,3]",2
+T002,Mobile App Development,Mobile,3,"React Native,iOS,Android","[2,3,4]",1
+T003,Data Analytics Dashboard,DataScience,2,"Python,Machine Learning,Statistics","[1,2,4]",1
+T004,E-commerce Platform,Full-stack,4,"Full-stack,React,Node.js,Database","[1,2,3,4,5]",1
+T005,Security Audit,Security,1,"Cybersecurity,Penetration Testing","[2,4]",1
+T006,API Development,Backend,2,"Python,Django,PostgreSQL","[1,3,5]",2
+T007,Machine Learning Model,DataScience,3,"Machine Learning,TensorFlow,Python","[2,3,4,5]",1
+T008,Database Optimization,Backend,1,"Database,SQL,Performance","[3,4]",1
+T009,DevOps Setup,DevOps,2,"AWS,Docker,Kubernetes","[1,2,3]",1
+T010,Quality Assurance,QA,1,"Testing,Selenium,QA","[4,5]",3
+T011,UI Component Library,Frontend,2,"React,JavaScript,Design","[1,2]",2
+T012,Payment Integration,Backend,1,"API Integration,Security","[3,4,5]",1 

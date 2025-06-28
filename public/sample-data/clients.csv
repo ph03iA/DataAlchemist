@@ -1,0 +1,11 @@
+ClientID,ClientName,PriorityLevel,RequestedTaskIDs,GroupTag,AttributesJSON
+C001,Tech Corp,5,"T001,T002,T007",Enterprise,"{""industry"":""Technology"",""location"":""New York"",""budget"":50000}"
+C002,Design Co,3,"T001,T005",SMB,"{""industry"":""Design"",""location"":""Los Angeles"",""budget"":35000}"
+C003,Startup Inc,5,"T002,T003",Enterprise,"{""industry"":""Technology"",""location"":""San Francisco"",""budget"":75000}"
+C004,Wilson Consulting,4,"T003,T006",SMB,"{""industry"":""Consulting"",""location"":""Chicago"",""budget"":40000}"
+C005,Retail Solutions,2,"T004,T008",SMB,"{""industry"":""Retail"",""location"":""Miami"",""budget"":25000}"
+C006,Health Systems,5,"T006,T007,T009",Enterprise,"{""industry"":""Healthcare"",""location"":""Boston"",""budget"":60000}"
+C007,Finance Plus,4,"T005,T010",Enterprise,"{""industry"":""Finance"",""location"":""Seattle"",""budget"":45000}"
+C008,Education First,3,"T009,T010",SMB,"{""industry"":""Education"",""location"":""Austin"",""budget"":30000}"
+C009,Manufacturing Corp,5,"T007,T003",Enterprise,"{""industry"":""Manufacturing"",""location"":""Detroit"",""budget"":80000}"
+C010,Media Group,1,"T008,T004",SMB,"{""industry"":""Media"",""location"":""Atlanta"",""budget"":20000}" 
