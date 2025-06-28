@@ -8,25 +8,23 @@ export class FileProcessor {
     type: 'clients' | 'workers' | 'tasks',
     onProgress?: (progress: FileUploadProgress) => void
   ): Promise<DataSheet> {
-    const fileExtension = file.name.split('.').pop()?.toLowerCase();
+    const startTime = Date.now();
     
-    if (!fileExtension || !['csv', 'xlsx', 'xls'].includes(fileExtension)) {
-      throw new Error('Unsupported file format. Please upload CSV or XLSX files.');
-    }
-
-    onProgress?.({
-      fileName: file.name,
-      progress: 10,
-      status: 'processing'
-    });
-
     try {
-      let data: any[][] = [];
+      onProgress?.({
+        fileName: file.name,
+        progress: 10,
+        status: 'processing'
+      });
+
+      let rawData: any[][];
       
-      if (fileExtension === 'csv') {
-        data = await this.processCSV(file, onProgress);
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        rawData = await this.processCSV(file, onProgress);
+      } else if (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')) {
+        rawData = await this.processExcel(file, onProgress);
       } else {
-        data = await this.processExcel(file, onProgress);
+        throw new Error('Unsupported file format');
       }
 
       onProgress?.({
@@ -35,8 +33,14 @@ export class FileProcessor {
         status: 'processing'
       });
 
-      const processedData = this.convertToDataRows(data);
-      const columns = data.length > 0 ? Object.keys(processedData[0]).filter(key => key !== 'id') : [];
+      const dataRows = this.convertToDataRows(rawData);
+      
+      if (dataRows.length === 0) {
+        throw new Error('No data found in the file');
+      }
+
+      // Extract column names from the first row (excluding the 'id' field)
+      const columns = dataRows.length > 0 ? Object.keys(dataRows[0]).filter(key => key !== 'id') : [];
 
       onProgress?.({
         fileName: file.name,
@@ -44,21 +48,32 @@ export class FileProcessor {
         status: 'complete'
       });
 
+      const endTime = Date.now();
+      
       return {
-        id: Date.now().toString(),
-        name: file.name,
+        id: `${type}-${Date.now()}`,
+        name: file.name.replace(/\.[^/.]+$/, ''), // Remove file extension
         type,
-        data: processedData,
+        data: dataRows,
         columns,
         validationErrors: [],
+        validationSummary: {
+          totalErrors: 0,
+          totalWarnings: 0,
+          totalInfo: 0,
+          passedValidations: [],
+          failedValidations: [],
+          validationsPassed: true,
+          lastRun: new Date(),
+          errors: []
+        },
         lastModified: new Date()
       };
     } catch (error) {
       onProgress?.({
         fileName: file.name,
         progress: 0,
-        status: 'error',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        status: 'error'
       });
       throw error;
     }
@@ -70,10 +85,9 @@ export class FileProcessor {
   ): Promise<any[][]> {
     return new Promise((resolve, reject) => {
       // First attempt with strict parsing
-      Papa.parse(file, {
+      Papa.parse(file as any, {
         header: true,
         skipEmptyLines: true,
-        quotes: true,
         quoteChar: '"',
         escapeChar: '"',
         delimiter: ',',
@@ -105,7 +119,7 @@ export class FileProcessor {
             resolve(results.data as any[][]);
           }
         },
-        error: (error) => {
+        error: (error: Error) => {
           console.log('CSV parsing failed, trying fallback parsing:', error.message);
           this.processCSVFallback(file, onProgress).then(resolve).catch(reject);
         }
@@ -120,12 +134,9 @@ export class FileProcessor {
     return new Promise((resolve, reject) => {
       console.log('Using fallback CSV parsing with relaxed settings...');
       
-      Papa.parse(file, {
+      Papa.parse(file as any, {
         header: true,
         skipEmptyLines: 'greedy',
-        quotes: false, // Disable quote handling to avoid malformed quote errors
-        delimiter: '',  // Auto-detect delimiter
-        newline: '',    // Auto-detect line endings
         transformHeader: (header: string) => header.trim().replace(/['"]/g, ''), // Remove quotes from headers
         transform: (value: string) => {
           // Clean up values - remove surrounding quotes and trim
@@ -159,7 +170,7 @@ export class FileProcessor {
             resolve(cleanData);
           }
         },
-        error: (error) => {
+        error: (error: Error) => {
           reject(new Error(`CSV parsing failed completely: ${error.message}. Please check your CSV file format.`));
         }
       });
@@ -227,6 +238,11 @@ export class FileProcessor {
   }
 
   static exportToCSV(data: DataRow[], filename: string): void {
+    if (typeof window === 'undefined') {
+      console.warn('Export function called in server environment');
+      return;
+    }
+    
     const cleanData = data.map(({ id, ...rest }) => rest);
     const csv = Papa.unparse(cleanData);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -245,6 +261,11 @@ export class FileProcessor {
   }
 
   static exportToExcel(data: DataRow[], filename: string): void {
+    if (typeof window === 'undefined') {
+      console.warn('Export function called in server environment');
+      return;
+    }
+    
     const cleanData = data.map(({ id, ...rest }) => rest);
     const worksheet = XLSX.utils.json_to_sheet(cleanData);
     const workbook = XLSX.utils.book_new();
