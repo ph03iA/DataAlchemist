@@ -25,8 +25,9 @@ Transform messy spreadsheets into optimized task assignments with intelligent bu
 
 2. **Setup Environment**
    ```bash
-   # Create .env.local
-   NEXT_PUBLIC_AI_API_KEY=your_google_gemini_api_key
+   # Create .env.local file with your API key
+   # Get your free API key from: https://makersuite.google.com/app/apikey
+   echo "NEXT_PUBLIC_AI_API_KEY=your_google_gemini_api_key_here" > .env.local
    ```
 
 3. **Run Development Server**

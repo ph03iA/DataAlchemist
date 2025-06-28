@@ -84,9 +84,11 @@ export function RulesCreator({
 
     setIsLoadingAiSuggestions(true);
     try {
-      const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY || 'AIzaSyCVhx0OqlKD7VxQqPxsLyTCFndgXcZN-So';
+      const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY;
+      
       if (!apiKey) {
-        throw new Error('No API key available');
+        toast.error('AI API key not configured');
+        return;
       }
       
       const aiProvider = createAIProvider('gemini', apiKey);

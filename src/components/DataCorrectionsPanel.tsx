@@ -51,10 +51,12 @@ export function DataCorrectionsPanel({ dataSheets, onDataUpdate }: DataCorrectio
     setAnalysisCount(prev => ({ ...prev, [sheetId]: currentCount + 1 }));
     
     try {
-      const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY || 'AIzaSyCVhx0OqlKD7VxQqPxsLyTCFndgXcZN-So';
-      if (!apiKey) {
-        throw new Error('No API key available');
-      }
+              const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY;
+        
+                if (!apiKey) {
+          console.log('AI API key not configured, skipping AI corrections');
+          return;
+        }
       
       const aiProvider = createAIProvider('gemini', apiKey);
       const suggestions = await aiProvider.suggestDataCorrections(sheet.data, sheet.type);

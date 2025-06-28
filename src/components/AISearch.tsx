@@ -51,10 +51,12 @@ export function AISearch({
         toast.success(`Found ${searchResults.length} results`);
       } else if (mode === 'modify' && activeSheetType && onDataModification) {
         // AI-powered data modification
-        const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY || 'AIzaSyCVhx0OqlKD7VxQqPxsLyTCFndgXcZN-So';
-        if (!apiKey) {
-          throw new Error('No API key available');
-        }
+        const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY;
+      
+            if (!apiKey) {
+        toast.error('AI API key not configured');
+        return;
+      }
         
         const aiProvider = createAIProvider('gemini', apiKey);
         const modificationSuggestions = await aiProvider.naturalLanguageModification(

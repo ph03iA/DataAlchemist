@@ -48,11 +48,11 @@ export default function HomePage() {
         
         // Run AI validation
         try {
-          const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY || 'AIzaSyCVhx0OqlKD7VxQqPxsLyTCFndgXcZN-So'; // Fallback for testing
-          console.log('API Key available:', !!apiKey, 'Length:', apiKey?.length);
+          const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY;
+          console.log('API Key available:', !!apiKey);
           
           if (!apiKey) {
-            throw new Error('No API key available');
+            throw new Error('AI API key not configured. Please set NEXT_PUBLIC_AI_API_KEY environment variable.');
           }
           
           const aiProviderInstance = createAIProvider(aiProvider, apiKey);
@@ -225,10 +225,10 @@ export default function HomePage() {
   const handleRuleCreate = useCallback(async (naturalLanguage: string) => {
     try {
       setIsProcessing(true);
-      const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY || 'AIzaSyCVhx0OqlKD7VxQqPxsLyTCFndgXcZN-So'; // Fallback for testing
+      const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY;
       
       if (!apiKey) {
-        throw new Error('No API key available');
+        throw new Error('AI API key not configured. Please set NEXT_PUBLIC_AI_API_KEY environment variable.');
       }
       
       const aiProviderInstance = createAIProvider(aiProvider, apiKey);
@@ -301,11 +301,11 @@ export default function HomePage() {
     console.log('Searching in sheet:', { name: sheet.name, type: sheet.type, rows: sheet.data.length });
 
     try {
-      const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY || 'AIzaSyCVhx0OqlKD7VxQqPxsLyTCFndgXcZN-So'; // Fallback for testing
+      const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY;
       
       if (!apiKey) {
-        console.log('No API key, using fallback search');
-        throw new Error('No API key available');
+        console.log('No API key configured, using fallback search');
+        throw new Error('AI API key not configured. Please set NEXT_PUBLIC_AI_API_KEY environment variable.');
       }
       
       console.log('Attempting AI search...');

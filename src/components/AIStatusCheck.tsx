@@ -20,7 +20,7 @@ export function AIStatusCheck() {
   useEffect(() => {
     // Check for API key
     const checkApiKey = () => {
-      const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY || 'AIzaSyCVhx0OqlKD7VxQqPxsLyTCFndgXcZN-So';
+      const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY;
       if (apiKey && apiKey.length > 10) {
         setApiKeyStatus('available');
       } else {
