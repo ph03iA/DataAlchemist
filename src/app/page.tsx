@@ -28,6 +28,14 @@ export default function HomePage() {
   ]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [aiProvider, setAiProvider] = useState<'gemini' | 'huggingface'>('gemini');
+  
+  // New state for managing upload flow
+  const [uploadedFiles, setUploadedFiles] = useState({
+    clients: false,
+    workers: false,
+    tasks: false
+  });
+  const [showUploadPhase, setShowUploadPhase] = useState(true);
 
   const handleFileUpload = useCallback(async (files: File[], type: 'clients' | 'workers' | 'tasks') => {
     setIsProcessing(true);
@@ -56,13 +64,24 @@ export default function HomePage() {
       const updatedDataSheets = [...dataSheets, ...newDataSheets];
       setDataSheets(updatedDataSheets);
       
+      // Mark this file type as uploaded
+      setUploadedFiles(prev => ({
+        ...prev,
+        [type]: true
+      }));
+      
       // Set active sheet if none is selected
       if (!activeSheet && newDataSheets.length > 0) {
         setActiveSheet(newDataSheets[0].id);
       }
 
-      // Now run comprehensive validation on all data including newly uploaded
-      await runComprehensiveValidation(updatedDataSheets);
+      // Show next file requirement message
+      const nextType = type === 'clients' ? 'workers' : type === 'workers' ? 'tasks' : null;
+      if (nextType) {
+        toast.success(`✅ ${type} uploaded! Now upload ${nextType} data.`, { duration: 4000 });
+      } else {
+        toast.success(`🎉 All files uploaded! Click Continue to proceed.`, { duration: 5000 });
+      }
       
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to process file');
@@ -70,6 +89,13 @@ export default function HomePage() {
       setIsProcessing(false);
     }
   }, [activeSheet, aiProvider, dataSheets]);
+
+  const handleContinue = useCallback(() => {
+    // Run comprehensive validation on all uploaded data
+    runComprehensiveValidation(dataSheets);
+    setShowUploadPhase(false);
+    toast.success('🚀 Starting comprehensive data analysis...', { duration: 3000 });
+  }, [dataSheets]);
 
   // New comprehensive validation function
   const runComprehensiveValidation = async (sheets: DataSheet[]) => {
@@ -707,7 +733,7 @@ export default function HomePage() {
           </div>
         </motion.div>
 
-        {dataSheets.length === 0 ? (
+        {showUploadPhase ? (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -717,7 +743,9 @@ export default function HomePage() {
             <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 lg:p-12">
               <FileUpload 
                 onFileUpload={handleFileUpload}
+                onContinue={handleContinue}
                 isProcessing={isProcessing}
+                uploadedFiles={uploadedFiles}
               />
             </div>
           </motion.div>

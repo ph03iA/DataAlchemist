@@ -338,9 +338,9 @@ export function ValidationPanel({ dataSheets, onValidationUpdate, totalErrors, o
             </div>
           </div>
           <div>
-            <h3 className="text-xl font-bold text-slate-900">Validation Status</h3>
+            <h3 className="text-xl font-bold text-slate-900">Data Validation</h3>
             <p className="text-sm text-slate-600">
-              Data quality and integrity checks
+              Review and fix issues below
             </p>
           </div>
         </div>

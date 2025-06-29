@@ -14,7 +14,7 @@ import {
   ChartBarIcon,
   XMarkIcon
 } from '@heroicons/react/24/outline';
-import { DataSheet } from '@/types';
+import { DataSheet, ValidationError } from '@/types';
 import { cn } from '@/utils/cn';
 
 interface DataViewerProps {
@@ -163,6 +163,24 @@ export function DataViewer({
     
     const columns = Object.keys(data[0]);
     
+    // Get validation errors for the active sheet
+    const validationErrors = activeSheetData?.validationErrors || [];
+    
+    // Function to get errors for a specific cell
+    const getCellErrors = (rowIndex: number, columnName: string) => {
+      return validationErrors.filter(error => 
+        error.row === rowIndex && error.column === columnName
+      );
+    };
+    
+    // Function to get the highest severity for a cell
+    const getCellSeverity = (errors: ValidationError[]) => {
+      if (errors.some(e => e.severity === 'error')) return 'error';
+      if (errors.some(e => e.severity === 'warning')) return 'warning';
+      if (errors.some(e => e.severity === 'info')) return 'info';
+      return null;
+    };
+    
     return (
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
@@ -184,54 +202,107 @@ export function DataViewer({
                 key={rowIndex}
                 className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors"
               >
-                {columns.map((col) => (
-                  <td
-                    key={col}
-                    className="px-4 py-3 text-sm text-slate-700 border-r border-slate-100 last:border-r-0 relative"
-                  >
-                    {editingCell?.row === rowIndex && editingCell?.col === col ? (
-                      <div className="relative z-10">
-                        <div className="absolute inset-0 bg-blue-50 border-2 border-blue-400 rounded-lg -m-1"></div>
-                        <div className="relative bg-white rounded-md shadow-lg border border-blue-300 p-2">
-                          <input
-                            ref={inputRef}
-                            type="text"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            onBlur={handleCellSave}
-                            className="w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
-                            placeholder="Enter value..."
-                          />
-                          <div className="flex items-center justify-end space-x-1 mt-2">
-                            <button
-                              onMouseDown={(e) => e.preventDefault()} // Prevent blur
-                              onClick={handleCellSave}
-                              className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 font-medium"
-                            >
-                              Save
-                            </button>
-                            <button
-                              onMouseDown={(e) => e.preventDefault()} // Prevent blur
-                              onClick={handleCellCancel}
-                              className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 font-medium"
-                            >
-                              Cancel
-                            </button>
+                {columns.map((col) => {
+                  const cellErrors = getCellErrors(rowIndex, col);
+                  const severity = getCellSeverity(cellErrors);
+                  const hasErrors = cellErrors.length > 0;
+                  
+                  // Error styling based on severity
+                  const errorStyles = {
+                    error: 'border-red-300 bg-red-50/50',
+                    warning: 'border-yellow-300 bg-yellow-50/50', 
+                    info: 'border-blue-300 bg-blue-50/50'
+                  };
+                  
+                  return (
+                    <td
+                      key={col}
+                      className={cn(
+                        "px-4 py-3 text-sm text-slate-700 border-r border-slate-100 last:border-r-0 relative",
+                        hasErrors && errorStyles[severity as keyof typeof errorStyles]
+                      )}
+                    >
+                      {editingCell?.row === rowIndex && editingCell?.col === col ? (
+                        <div className="relative z-10">
+                          <div className="absolute inset-0 bg-blue-50 border-2 border-blue-400 rounded-lg -m-1"></div>
+                          <div className="relative bg-white rounded-md shadow-lg border border-blue-300 p-2">
+                            <input
+                              ref={inputRef}
+                              type="text"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onKeyDown={handleKeyDown}
+                              onBlur={handleCellSave}
+                              className="w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
+                              placeholder="Enter value..."
+                            />
+                            <div className="flex items-center justify-end space-x-1 mt-2">
+                              <button
+                                onMouseDown={(e) => e.preventDefault()} // Prevent blur
+                                onClick={handleCellSave}
+                                className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 font-medium"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onMouseDown={(e) => e.preventDefault()} // Prevent blur
+                                onClick={handleCellCancel}
+                                className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 font-medium"
+                              >
+                                Cancel
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ) : (
-                      <div
-                        className="cursor-pointer hover:bg-blue-50 rounded-md px-2 py-1 transition-colors min-h-[24px] flex items-center group"
-                        onClick={() => handleCellEdit(rowIndex, col, String(row[col] || ''))}
-                      >
-                        <span className="flex-1">{String(row[col] || '')}</span>
-                        <PencilIcon className="h-3 w-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
-                      </div>
-                    )}
-                  </td>
-                ))}
+                      ) : (
+                        <div className="relative group">
+                          <div
+                            className="cursor-pointer hover:bg-blue-50 rounded-md px-2 py-1 transition-colors min-h-[24px] flex items-center group"
+                            onClick={() => handleCellEdit(rowIndex, col, String(row[col] || ''))}
+                          >
+                            <span className="flex-1">{String(row[col] || '')}</span>
+                            <div className="flex items-center space-x-1">
+                              {/* Error indicator */}
+                              {hasErrors && (
+                                <div className="relative">
+                                  <div className={cn(
+                                    "w-2 h-2 rounded-full",
+                                    severity === 'error' ? 'bg-red-500' :
+                                    severity === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
+                                  )} />
+                                  
+                                  {/* Tooltip on hover */}
+                                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 whitespace-nowrap max-w-xs">
+                                    <div className="space-y-1">
+                                      {cellErrors.slice(0, 3).map((error, idx) => (
+                                        <div key={idx} className="flex items-start space-x-2">
+                                          <div className={cn(
+                                            "w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0",
+                                            error.severity === 'error' ? 'bg-red-400' :
+                                            error.severity === 'warning' ? 'bg-yellow-400' : 'bg-blue-400'
+                                          )} />
+                                          <span>{error.message}</span>
+                                        </div>
+                                      ))}
+                                      {cellErrors.length > 3 && (
+                                        <div className="text-gray-400 text-xs">
+                                          +{cellErrors.length - 3} more...
+                                        </div>
+                                      )}
+                                    </div>
+                                    {/* Tooltip arrow */}
+                                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-2 h-2 bg-gray-900 rotate-45"></div>
+                                  </div>
+                                </div>
+                              )}
+                              <PencilIcon className="h-3 w-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>

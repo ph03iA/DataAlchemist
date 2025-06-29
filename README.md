@@ -1,6 +1,6 @@
 # 🚀 Data Alchemist
 
-**AI-Powered Resource Allocation System**
+[![Deploy to GitHub Pages](https://github.com/ph03iA/DataAlchemist/actions/workflows/deploy.yml/badge.svg)](https://github.com/ph03iA/DataAlchemist/actions/workflows/deploy.yml)
 
 Transform messy spreadsheets into optimized task assignments with intelligent business rules.
 
@@ -27,7 +27,7 @@ Transform messy spreadsheets into optimized task assignments with intelligent bu
    ```bash
    # Create .env.local file with your API key
    # Get your free API key from: https://makersuite.google.com/app/apikey
-   echo "NEXT_PUBLIC_AI_API_KEY=your_google_gemini_api_key_here" > .env.local
+   echo "NEXT_PUBLIC_AI_API_KEY=your_google_gemini_api_key" > .env.local
    ```
 
 3. **Run Development Server**
@@ -57,12 +57,36 @@ Transform messy spreadsheets into optimized task assignments with intelligent bu
 
 ## 🚀 Live Demo
 
-Upload the provided sample data to see immediate results:
-- 10 clients with priority levels
-- 12 workers with diverse skills
-- 12 tasks requiring different expertise
+Visit the live application: [https://ph03ia.github.io/DataAlchemist/](https://ph03ia.github.io/DataAlchemist/)
 
-The AI will automatically suggest optimizations and execute intelligent resource allocation.
+## 🛠️ Development
+
+```bash
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) to view the application.
+
+## 📊 Data Format
+
+The application expects three types of CSV files:
+
+### Clients CSV
+- `ClientID`, `ClientName`, `PriorityLevel` (1-5), `RequestedTaskIDs`, `GroupTag`, `AttributesJSON`
+
+### Workers CSV  
+- `WorkerID`, `WorkerName`, `Skills`, `AvailableSlots`, `MaxLoadPerPhase`, `WorkerGroup`, `QualificationLevel`
+
+### Tasks CSV
+- `TaskID`, `TaskName`, `Category`, `Duration`, `RequiredSkills`, `PreferredPhases`, `MaxConcurrent`
+
+## 🤖 AI Configuration
+
+Set your Google Gemini API key in the environment:
+```
+NEXT_PUBLIC_AI_API_KEY=your_gemini_api_key
+```
 
 ---
 

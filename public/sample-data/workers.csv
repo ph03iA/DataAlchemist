@@ -1,13 +1,11 @@
 WorkerID,WorkerName,Skills,AvailableSlots,MaxLoadPerPhase,WorkerGroup,QualificationLevel
-W001,Alice Johnson,"JavaScript,React,Node.js","[1,2,3,4,5]",3,Frontend,Senior
-W002,Bob Wilson,"Python,Django,PostgreSQL","[1,3,5]",2,Backend,Mid-level
-W003,Carol Chen,"UI/UX,Figma,Design","[2,3,4]",2,Design,Senior
-W004,David Rodriguez,"Python,Machine Learning,Statistics","[1,2,4,5]",3,DataScience,Senior
-W005,Elena Petrov,"React Native,iOS,Android","[1,2,3]",2,Mobile,Mid-level
-W006,Frank Thompson,"AWS,Docker,Kubernetes","[3,4,5]",3,DevOps,Senior
-W007,Grace Kim,"Testing,Selenium,QA","[1,2,3,4,5]",4,QA,Mid-level
-W008,Henry Lopez,"Cybersecurity,Penetration Testing","[2,4]",1,Security,Senior
-W009,Iris Wang,"Machine Learning,TensorFlow,AI","[1,3,4,5]",2,DataScience,Senior
-W010,Jack Brown,"Full-stack,MEAN,MERN","[1,2,3,4,5]",3,Frontend,Mid-level
-W011,Karen Davis,"Database,SQL,Performance","[2,3,4]",2,Backend,Senior
-W012,Luke Martinez,"Project Management,Agile","[1,2,3,4,5]",5,Management,Senior 
+W001,John Smith,"JavaScript,React,Node.js","[1,2,3,4,5]",3,Frontend,Senior
+W002,Sarah Johnson,"Python,Django,PostgreSQL","[2,3,4]",2,Backend,Mid-level
+W003,,"Java,Spring,MySQL","[1,3,5]",4,Backend,Junior
+W004,Mike Chen,"React,TypeScript,GraphQL","[1,2,4,5]",0,Frontend,Senior
+W005,Emily Rodriguez,"UI/UX,Figma,Adobe XD",invalid_slots_format,2,Design,15
+W006,David Kim,"Python,Machine Learning","[1,2,3,4,5,6]",3,Backend,Expert
+W007,Lisa Wang,"JavaScript,Vue.js,CSS","[2,4]",2,Frontend,Mid-level
+W008,Alex Thompson,"DevOps,Docker,Kubernetes","[1,3,5]",-1,Infrastructure,Senior
+W001,John Duplicate,"Different,Skills","[1,2]",2,Frontend,Senior
+W010,Valid Worker,"Testing,QA,Selenium","[1,2,3]",3,QA,Junior 
